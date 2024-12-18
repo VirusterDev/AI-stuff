@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Button Predictor</title>
+    <script src="https://unpkg.com/brain.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: #343541;
+            color: #fff;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: #444654;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .prediction {
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #343541;
+        }
+
+        .history {
+            height: 300px;
+            overflow-y: auto;
+            border: 1px solid #565869;
+            border-radius: 5px;
+            padding: 10px;
+            margin: 20px 0;
+            text-align: left;
+        }
+
+        .result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background: #444654;
+        }
+
+        .correct {
+            color: #10a37f;
+        }
+
+        .incorrect {
+            color: #ff4444;
+        }
+
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            background: #10a37f;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        button:hover {
+            background: #0e906f;
+        }
+
+        .toggle-prediction {
+            background: #565869;
+            margin-bottom: 20px;
+        }
+
+        .hidden {
+            visibility: hidden;
+        }
+
+        .stats {
+            margin: 20px 0;
+            padding: 10px;
+            background: #343541;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>AI Button Predictor</h2>
+        <button class="toggle-prediction" onclick="togglePrediction()">Show/Hide Prediction</button>
+        <div class="prediction hidden" id="prediction">AI thinks you'll click: ...</div>
+        <div>
+            <button onclick="handleClick('A')">Button A</button>
+            <button onclick="handleClick('B')">Button B</button>
+        </div>
+        <div class="stats" id="stats">Accuracy: 0% (0/0)</div>
+        <div class="history" id="history"></div>
+    </div>
+
+    <script>
+        const net = new brain.recurrent.LSTM();
+        let clickHistory = [];
+        let trainingData = [];
+        let correctPredictions = 0;
+        let totalPredictions = 0;
+        const historyLength = 5;
+
+        for (let i = 0; i < 10; i++) {
+            trainingData.push({
+                input: Array(historyLength).fill('A').join(','),
+                output: 'A'
+            });
+            trainingData.push({
+                input: Array(historyLength).fill('B').join(','),
+                output: 'B'
+            });
+        }
+
+        trainNetwork();
+
+        function trainNetwork() {
+            net.train(trainingData, {
+                iterations: 100,
+                errorThresh: 0.011
+            });
+        }
+
+        function predictNext() {
+            if (clickHistory.length < historyLength) {
+                return Math.random() < 0.5 ? 'A' : 'B';
+            }
+            const input = clickHistory.slice(-historyLength).join(',');
+            return net.run(input);
+        }
+
+        function togglePrediction() {
+            const predictionDiv = document.getElementById('prediction');
+            predictionDiv.classList.toggle('hidden');
+        }
+
+        function updateStats() {
+            const accuracy = totalPredictions === 0 ? 0 : (correctPredictions / totalPredictions) * 100;
+            document.getElementById('stats').textContent = 
+                `Accuracy: ${accuracy.toFixed(1)}% (${correctPredictions}/${totalPredictions})`;
+        }
+
+        function handleClick(button) {
+            const prediction = document.getElementById('prediction').textContent.split(': ')[1];
+            clickHistory.push(button);
+            totalPredictions++;
+            if (prediction === button) {
+                correctPredictions++;
+            }
+            updateStats();
+            
+            if (clickHistory.length >= historyLength) {
+                trainingData.push({
+                    input: clickHistory.slice(-historyLength - 1, -1).join(','),
+                    output: button
+                });
+                trainNetwork();
+            }
+
+            const historyDiv = document.getElementById('history');
+            const result = document.createElement('div');
+            result.className = 'result';
+            const isCorrect = prediction === button;
+            result.innerHTML = `Prediction: ${prediction} | Actual: ${button} | <span class="${isCorrect ? 'correct' : 'incorrect'}">${isCorrect ? 'Correct!' : 'Wrong!'}</span>`;
+            historyDiv.insertBefore(result, historyDiv.firstChild);
+
+            const nextPrediction = predictNext();
+            document.getElementById('prediction').textContent = `AI thinks you'll click: ${nextPrediction}`;
+        }
+
+        document.getElementById('prediction').textContent = `AI thinks you'll click: ${predictNext()}`;
+    </script>
+</body>
+</html>
